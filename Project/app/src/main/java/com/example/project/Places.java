@@ -5,12 +5,16 @@ import java.io.Serializable;
 public class Places implements Serializable {
     private long id;
     private String address;
+    private float latitude;
+    private float longitude;
     private String description;
     private String image;
 
-    public Places (long id, String address, String description, String image) {
+    public Places (long id, String address, float latitude, float longitude, String description, String image) {
         this.id = id;
         this.address = address;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.description = description;
         this.image = image;
     }
@@ -27,7 +31,13 @@ public class Places implements Serializable {
         return description;
     }
 
-    public String getImage() {
-        return image;
+    public String getImage() { return image; }
+
+    public float getLatitude() {
+        return latitude;
+    }
+
+    public float getLongitude() {
+        return longitude;
     }
 }
