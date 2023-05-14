@@ -16,6 +16,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.DisplayMetrics;
@@ -43,7 +44,17 @@ import com.yandex.mapkit.map.PlacemarkMapObject;
 import com.yandex.mapkit.mapview.MapView;
 import com.yandex.runtime.image.ImageProvider;
 
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
 import java.util.ArrayList;
+
+import javax.net.ssl.HttpsURLConnection;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -195,6 +206,46 @@ public class MainActivity extends AppCompatActivity {
         this.address = address;
         this.description = description;
         this.image = image;
+
+        // определение широты и долготы по адресу
+        new PostMethod().execute("https://geocode-maps.yandex.ru/1.x", address, "76d3a208-8282-4af2-b4f1-f749cdb7c2ad");
+
         mDBConnector.insertPlaces(this.address, (float) latitude, (float) longitude, this.description, this.image);
+    }
+
+    public class PostMethod extends AsyncTask<String , Void ,String> {
+        @Override
+        protected String doInBackground(String... strings) {
+
+            URL url;
+            HttpURLConnection myConnection = null;
+            try {
+                url = new URL(strings[0]);
+                myConnection = (HttpsURLConnection) url.openConnection();
+                myConnection.setRequestMethod("POST");
+                String myData = "geocode=" + strings[1] + "&apikey=" + strings[2];
+                myConnection.setDoOutput(true);
+                myConnection.getOutputStream().write(myData.getBytes());
+                InputStream in = myConnection.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    Log.d("MyApp", String.valueOf(current));
+                }
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (ProtocolException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                if (myConnection != null) {
+                    myConnection.disconnect();
+                }
+            }
+            return null;
+        }
     }
 }
