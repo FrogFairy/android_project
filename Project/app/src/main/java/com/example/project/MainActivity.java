@@ -34,6 +34,8 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.gson.Gson;
+import com.google.gson.internal.LinkedTreeMap;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.Point;
@@ -45,14 +47,25 @@ import com.yandex.mapkit.mapview.MapView;
 import com.yandex.runtime.image.ImageProvider;
 
 
+import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintStream;
+import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -76,11 +89,14 @@ public class MainActivity extends AppCompatActivity {
     private String address;
     private double lat;
     private double lon;
+    private Map<String, String> map;
     private String description;
     private String image;
 
     private int height;
     private int width;
+
+    private AsyncTask<String , Void ,String> get;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -202,37 +218,59 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendInput(String address, String description, String image) {
-        Log.d("MyApp", "работает?");
         this.address = address;
         this.description = description;
         this.image = image;
 
+        // изменение адреса в соответствии с форматом
+        this.address = getAddress(address);
+
         // определение широты и долготы по адресу
-        new PostMethod().execute("https://geocode-maps.yandex.ru/1.x", address, "76d3a208-8282-4af2-b4f1-f749cdb7c2ad");
+        get = new GetMethod();
+        get.execute("https://geocode-maps.yandex.ru/1.x", address,
+                "76d3a208-8282-4af2-b4f1-f749cdb7c2ad", "json");
+        try {
+            this.map = parse(get.get());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        lat = ((Map<T, T>) map.get("response")).get("featureMember");
 
         mDBConnector.insertPlaces(this.address, (float) latitude, (float) longitude, this.description, this.image);
     }
 
-    public class PostMethod extends AsyncTask<String , Void ,String> {
+    private String getAddress(String address) {
+        String new_address = "";
+        for (int i = 0; i < address.length(); ++i) {
+            if (address.charAt(i) == ' ') {
+                new_address += '+';
+            } else {
+                new_address += address.charAt(i);
+            }
+        }
+        return new_address;
+    }
+
+    public class GetMethod extends AsyncTask<String , Void ,String> {
         @Override
         protected String doInBackground(String... strings) {
-
             URL url;
-            HttpURLConnection myConnection = null;
+            URLConnection myConnection;
+            StringBuilder result = new StringBuilder("");
             try {
-                url = new URL(strings[0]);
-                myConnection = (HttpsURLConnection) url.openConnection();
-                myConnection.setRequestMethod("POST");
-                String myData = "geocode=" + strings[1] + "&apikey=" + strings[2];
-                myConnection.setDoOutput(true);
-                myConnection.getOutputStream().write(myData.getBytes());
+                String myData = "apikey=" + strings[2] + "&geocode=" + strings[1] +
+                        "&format=" + strings[3];
+                url = new URL(strings[0] + "?" + myData);
+                myConnection = url.openConnection();
+
                 InputStream in = myConnection.getInputStream();
                 InputStreamReader isw = new InputStreamReader(in);
                 int data = isw.read();
+
                 while (data != -1) {
                     char current = (char) data;
                     data = isw.read();
-                    Log.d("MyApp", String.valueOf(current));
+                    result.append(current);
                 }
             } catch (MalformedURLException e) {
                 e.printStackTrace();
@@ -240,12 +278,17 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
-            } finally {
-                if (myConnection != null) {
-                    myConnection.disconnect();
-                }
             }
-            return null;
+            return result.toString();
         }
+
+        @Override
+        protected void onPostExecute(String result) {
+            super.onPostExecute(result);
+        }
+    }
+
+    public void parse(String result) {
+        this.map = new Gson().fromJson(result, Map.class);
     }
 }
