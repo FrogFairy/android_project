@@ -29,6 +29,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -37,6 +38,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
 import com.yandex.mapkit.Animation;
+import com.yandex.mapkit.GeoObject;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.Point;
 import com.yandex.mapkit.map.CameraPosition;
@@ -65,7 +67,9 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -89,7 +93,8 @@ public class MainActivity extends AppCompatActivity {
     private String address;
     private double lat;
     private double lon;
-    private Map<String, String> map;
+    private Scanner pos;
+    private GeocoderResponse.Geocoder map;
     private String description;
     private String image;
 
@@ -120,6 +125,7 @@ public class MainActivity extends AppCompatActivity {
         mapView = (MapView) findViewById(R.id.mapView);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         getMap();
+        setPoints();
 
         // нажатия на кнопки
         View.OnClickListener listener = new View.OnClickListener() {
@@ -181,22 +187,26 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
                     textView.setText(mapObject.getUserData().toString());
-                    place.setVisibility(View.VISIBLE);
+                    if (!textView.getText().toString().equals("Ваше местоположение")) {
+                        place.setVisibility(View.VISIBLE);
+                    }
                     return true;
                 }
             };
             curPosition.addTapListener(markerListener);
             curPosition.setIcon(ImageProvider.fromResource(MainActivity.this, R.drawable.cur_marker));
-
-            ArrayList<Places> md = mDBConnector.selectAllPlaces();
-            for (Places p: md) {
-                position = mapView.getMap().getMapObjects().addPlacemark(new Point(p.getLatitude(), p.getLongitude()));
-                position.setUserData(p.getAddress());
-                position.addTapListener(markerListener);
-                curPosition.setIcon(ImageProvider.fromResource(MainActivity.this, R.drawable.marker));
-            }
         } else {
             curPosition.setGeometry(new Point(latitude, longitude));
+        }
+    }
+
+    protected void setPoints() {
+        ArrayList<Places> md = mDBConnector.selectAllPlaces();
+        for (Places p: md) {
+            position = mapView.getMap().getMapObjects().addPlacemark(new Point(p.getLatitude(), p.getLongitude()));
+            position.setUserData(p.getAddress());
+            position.addTapListener(markerListener);
+            position.setIcon(ImageProvider.fromResource(MainActivity.this, R.drawable.marker));
         }
     }
 
@@ -223,32 +233,25 @@ public class MainActivity extends AppCompatActivity {
         this.image = image;
 
         // изменение адреса в соответствии с форматом
-        this.address = getAddress(address);
+        this.address = address.replace(" ", "+");
 
-        // определение широты и долготы по адресу
-        get = new GetMethod();
-        get.execute("https://geocode-maps.yandex.ru/1.x", address,
-                "76d3a208-8282-4af2-b4f1-f749cdb7c2ad", "json");
         try {
-            this.map = parse(get.get());
+            // определение широты и долготы по адресу
+            get = new GetMethod();
+            get.execute("https://geocode-maps.yandex.ru/1.x", this.address,
+                    "76d3a208-8282-4af2-b4f1-f749cdb7c2ad", "json");
+            parse(get.get());
+            pos = new Scanner(this.map.response.GeoObjectCollection.featureMember.get(0).GeoObject.Point.pos
+                    .replace(".", ","));
+            lon = pos.nextDouble();
+            lat = pos.nextDouble();
+
+            mDBConnector.insertPlaces(address, (float) lat, (float) lon, this.description, this.image);
+            setPoints();
         } catch (Exception e) {
+            Toast.makeText(this, "Что-то пошло не так", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
-        lat = ((Map<T, T>) map.get("response")).get("featureMember");
-
-        mDBConnector.insertPlaces(this.address, (float) latitude, (float) longitude, this.description, this.image);
-    }
-
-    private String getAddress(String address) {
-        String new_address = "";
-        for (int i = 0; i < address.length(); ++i) {
-            if (address.charAt(i) == ' ') {
-                new_address += '+';
-            } else {
-                new_address += address.charAt(i);
-            }
-        }
-        return new_address;
     }
 
     public class GetMethod extends AsyncTask<String , Void ,String> {
@@ -275,9 +278,9 @@ public class MainActivity extends AppCompatActivity {
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (ProtocolException e) {
-                e.printStackTrace();
+                Toast.makeText(MainActivity.this, "Неверный адрес", Toast.LENGTH_SHORT).show();
             } catch (IOException e) {
-                e.printStackTrace();
+                Toast.makeText(MainActivity.this, "Неверный адрес", Toast.LENGTH_SHORT).show();
             }
             return result.toString();
         }
@@ -289,6 +292,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void parse(String result) {
-        this.map = new Gson().fromJson(result, Map.class);
+        /*int maxLogSize = 1000;
+        for(int i = 0; i <= result.length() / maxLogSize; i++) {
+            int start = i * maxLogSize;
+            int end = (i+1) * maxLogSize;
+            end = end > result.length() ? result.length() : end;
+            Log.d("MyApp", result.substring(start, end));
+        }*/
+        this.map = new Gson().fromJson(result, GeocoderResponse.Geocoder.class);
     }
 }

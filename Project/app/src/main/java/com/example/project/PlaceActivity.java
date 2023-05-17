@@ -42,26 +42,7 @@ public class PlaceActivity extends AppCompatActivity {
                         Intent data = result.getData();
                         if (data != null) {
                             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
-                            int width = 800;
-                            int height = (bitmap.getHeight() * 800) / bitmap.getWidth();
-                            bitmap = Bitmap.createScaledBitmap(bitmap, width, height, false);
-                            int x0, y0 = bitmap.getHeight() - (other_bitmap.getHeight() * 2);
-                            for (int y = 0; y < other_bitmap.getHeight(); ++y) {
-                                if (y0 >= bitmap.getHeight()) {
-                                    break;
-                                }
-                                x0 = 0;
-                                for (int x = 0; x < other_bitmap.getWidth(); ++x) {
-                                    if (x0 >= 2 * other_bitmap.getWidth()) {
-                                        break;
-                                    }
-                                    if (other_bitmap.getPixel(x, y) != other_bitmap.getPixel(0, 0)) {
-                                        bitmap.setPixel(x0, y0, other_bitmap.getPixel(x, y));
-                                    }
-                                    x0 += 2;
-                                }
-                                y0 += 2;
-                            }
+                            remakeBitmap(bitmap);
                             imageView.setImageBitmap(bitmap);
                         }
                     }
@@ -75,5 +56,29 @@ public class PlaceActivity extends AppCompatActivity {
                 launcher.launch(takePhotoIntent);
             }
         });
+    }
+
+    protected Bitmap remakeBitmap(Bitmap bitmap) {
+        int width = 800;
+        int height = (bitmap.getHeight() * 800) / bitmap.getWidth();
+        bitmap = Bitmap.createScaledBitmap(bitmap, width, height, false);
+        int x0, y0 = bitmap.getHeight() - (other_bitmap.getHeight() * 2);
+        for (int y = 0; y < other_bitmap.getHeight(); ++y) {
+            if (y0 >= bitmap.getHeight()) {
+                break;
+            }
+            x0 = 0;
+            for (int x = 0; x < other_bitmap.getWidth(); ++x) {
+                if (x0 >= 2 * other_bitmap.getWidth()) {
+                    break;
+                }
+                if (other_bitmap.getPixel(x, y) != other_bitmap.getPixel(0, 0)) {
+                    bitmap.setPixel(x0, y0, other_bitmap.getPixel(x, y));
+                }
+                x0 += 2;
+            }
+            y0 += 2;
+        }
+        return bitmap;
     }
 }
