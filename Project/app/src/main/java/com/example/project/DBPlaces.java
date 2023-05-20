@@ -133,6 +133,18 @@ public class DBPlaces {
         return new Places(id, Address, Latitude, Longitude, Description, Image);
     }
 
+    public Places selectPlaces(String address) {
+        Cursor mCursor = mDataBase.query(PLACES_TABLE_NAME, null, COLUMN_ADDRESS + " = ?", new String[]{address}, null, null, null);
+
+        mCursor.moveToFirst();
+        int id = mCursor.getInt(NUM_COLUMN_ID);
+        float Latitude = mCursor.getFloat(NUM_COLUMN_LATITUDE);
+        float Longitude = mCursor.getFloat(NUM_COLUMN_LONGITUDE);
+        String Description = mCursor.getString(NUM_COLUMN_DESCRIPTION);
+        String Image = mCursor.getString(NUM_COLUMN_IMAGE);
+        return new Places(id, address, Latitude, Longitude, Description, Image);
+    }
+
     public Users selectUsers(long id) {
         Cursor mCursor = mDataBase.query(USERS_TABLE_NAME, null, COLUMN_ID + " = ?", new String[]{String.valueOf(id)}, null, null, null);
 

@@ -14,10 +14,13 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.location.Location;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -80,14 +83,15 @@ public class MainActivity extends AppCompatActivity {
     private MapView mapView;
     private TextView textView;
     private Button place;
+
     private DBPlaces mDBConnector;
-    private CustomDialog dialog;
 
     private FusedLocationProviderClient fusedLocationClient;
     private double latitude = 55.751574;
     private double longitude = 37.573856;
     private PlacemarkMapObject curPosition;
     private PlacemarkMapObject position;
+    private Places curPlace;
     private MapObjectTapListener markerListener;
 
     private String address;
@@ -96,12 +100,16 @@ public class MainActivity extends AppCompatActivity {
     private Scanner pos;
     private GeocoderResponse.Geocoder map;
     private String description;
-    private String image;
+    private Uri image;
+
+    private Intent dialog;
+    private Intent placeActivity;
 
     private int height;
     private int width;
 
     private AsyncTask<String , Void ,String> get;
+    private ArrayList<Places> md;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +117,7 @@ public class MainActivity extends AppCompatActivity {
         MapKitFactory.setApiKey("229b21d7-d218-4f3b-92b7-674b72185dd1");
         MapKitFactory.initialize(this);
         setContentView(R.layout.activity_main);
+        getSupportActionBar().hide();
 
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
@@ -116,10 +125,25 @@ public class MainActivity extends AppCompatActivity {
         width = displayMetrics.widthPixels;
 
         mDBConnector = new DBPlaces(this);
-
-        dialog = new CustomDialog(this);
-
         textView = findViewById(R.id.textView);
+
+        // запуск активити добавления места
+        ActivityResultLauncher<Intent> dialogLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                new ActivityResultCallback<ActivityResult>() {
+                    @Override
+                    public void onActivityResult(ActivityResult result) {
+                        if (result.getResultCode() == RESULT_OK) {
+                            Intent data = result.getData();
+                            if (data != null) {
+                                address = data.getStringExtra("address");
+                                description = data.getStringExtra("description");
+                                image = (Uri) data.getExtras().get("image");
+                                sendInput(address, description, image);
+                            }
+                        }
+                    }
+                });
 
         // создание карты
         mapView = (MapView) findViewById(R.id.mapView);
@@ -139,18 +163,15 @@ public class MainActivity extends AppCompatActivity {
                         get_location();
                         break;
                     case R.id.place:
-                        startActivity(new Intent(MainActivity.this, PlaceActivity.class));
+                        placeActivity = new Intent(MainActivity.this, PlaceActivity.class);
+                        placeActivity.putExtra("placeID", curPlace.getId());
+                        startActivity(placeActivity);
                         break;
                     case R.id.add:
-                        dialog.show();
-                        View view = getLayoutInflater().inflate(R.layout.add_dialog, null);
-                        view.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-                        RelativeLayout layout = (RelativeLayout) view.findViewById(R.id.addDialogLayout);
-                        dialog.getWindow().setLayout(width, layout.getMeasuredHeight());
-                        dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
+                        dialog = new Intent(MainActivity.this, CustomDialog.class);
+                        dialogLauncher.launch(dialog);
                         break;
                 }
-
             }
         };
         add = findViewById(R.id.add);
@@ -188,7 +209,14 @@ public class MainActivity extends AppCompatActivity {
                 public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
                     textView.setText(mapObject.getUserData().toString());
                     if (!textView.getText().toString().equals("Ваше местоположение")) {
-                        place.setVisibility(View.VISIBLE);
+                        curPlace = mDBConnector.selectPlaces(textView.getText().toString());
+                        if (inside(latitude, longitude, curPlace.getLatitude(), curPlace.getLongitude(), 0.005)) {
+                            place.setVisibility(View.VISIBLE);
+                        } else {
+                            place.setVisibility(View.INVISIBLE);
+                        }
+                    } else {
+                        place.setVisibility(View.INVISIBLE);
                     }
                     return true;
                 }
@@ -201,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void setPoints() {
-        ArrayList<Places> md = mDBConnector.selectAllPlaces();
+        md = mDBConnector.selectAllPlaces();
         for (Places p: md) {
             position = mapView.getMap().getMapObjects().addPlacemark(new Point(p.getLatitude(), p.getLongitude()));
             position.setUserData(p.getAddress());
@@ -227,11 +255,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void sendInput(String address, String description, String image) {
-        this.address = address;
-        this.description = description;
-        this.image = image;
-
+    protected void sendInput(String address, String description, Uri image) {
         // изменение адреса в соответствии с форматом
         this.address = address.replace(" ", "+");
 
@@ -246,7 +270,7 @@ public class MainActivity extends AppCompatActivity {
             lon = pos.nextDouble();
             lat = pos.nextDouble();
 
-            mDBConnector.insertPlaces(address, (float) lat, (float) lon, this.description, this.image);
+            mDBConnector.insertPlaces(address, (float) lat, (float) lon, this.description, this.image.toString());
             setPoints();
         } catch (Exception e) {
             Toast.makeText(this, "Что-то пошло не так", Toast.LENGTH_SHORT).show();
@@ -291,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void parse(String result) {
+    protected void parse(String result) {
         /*int maxLogSize = 1000;
         for(int i = 0; i <= result.length() / maxLogSize; i++) {
             int start = i * maxLogSize;
@@ -300,5 +324,12 @@ public class MainActivity extends AppCompatActivity {
             Log.d("MyApp", result.substring(start, end));
         }*/
         this.map = new Gson().fromJson(result, GeocoderResponse.Geocoder.class);
+    }
+
+    protected boolean inside(double lat1, double lon1, double lat2, double lon2, double r) {
+        if ((lat1 - lat2) * (lat1 - lat2) + (lon1 - lon2) * (lon1 - lon2) <= r * r) {
+            return true;
+        }
+        return false;
     }
 }
