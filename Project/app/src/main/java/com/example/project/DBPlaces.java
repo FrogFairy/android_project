@@ -6,12 +6,26 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class DBPlaces {
 
     private static final String DATABASE_NAME = "simple.db";
-    private static final int DATABASE_VERSION = 2;
     private static final String PLACES_TABLE_NAME = "tablePlaces";
     private static final String USERS_TABLE_NAME = "tableUsers";
     private static final String VISITING_TABLE_NAME = "tableVisiting";
@@ -42,95 +56,53 @@ public class DBPlaces {
     private static final int NUM_COLUMN_PLACE_ID = 2;
     private static final int NUM_COLUMN_IMAGES = 3;
 
-    private SQLiteDatabase mDataBase;
+    private FirebaseFirestore mDataBase;
+    private CollectionReference placesDoc;
+    private CollectionReference usersDoc;
+    private CollectionReference visitingDoc;
 
-    public DBPlaces(Context context) {
-        OpenHelper mOpenHelper = new OpenHelper(context);
-        mDataBase = mOpenHelper.getWritableDatabase();
+    public DBPlaces() {
+        mDataBase = FirebaseFirestore.getInstance();
+        placesDoc = mDataBase.collection(PLACES_TABLE_NAME);
+        usersDoc = mDataBase.collection(USERS_TABLE_NAME);
+        visitingDoc = mDataBase.collection(VISITING_TABLE_NAME);
     }
 
-    public long insert(String table_name, String[] values) {
-        if (table_name.equals(PLACES_TABLE_NAME)) {
-            return insertPlaces(values[0], Float.valueOf(values[1]), Float.valueOf(values[2]),
-                    values[3], values[4]);
-        } else if (table_name.equals(USERS_TABLE_NAME)) {
-            return insertUsers(values[0]);
-        }
-        return insertVisiting(Long.getLong(values[0]), Long.getLong(values[1]), values[2]);
+    public void insertPlaces(String address, float lat, float lon, String description, String image) {
+        Map<String, Object> place = new HashMap<>();
+        place.put("address", address);
+        place.put("latitude", lat);
+        place.put("longitude", lon);
+        place.put("description", description);
+        place.put("image", image);
+        placesDoc.document(address).set(place);
     }
 
-    public long insertPlaces(String address, float lat, float lon, String description, String image) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_ADDRESS, address);
-        cv.put(COLUMN_LATITUDE, lat);
-        cv.put(COLUMN_LONGITUDE, lon);
-        cv.put(COLUMN_DESCRIPTION, description);
-        cv.put(COLUMN_IMAGE, image);
-        return mDataBase.insert(PLACES_TABLE_NAME, null, cv);
+    public void insertUsers(String username) {
+        Map<String, Object> place = new HashMap<>();
+        place.put("username", username);
+        usersDoc.document(username).set(place);
     }
 
-    public long insertUsers(String username) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_USERNAME, username);
-        return mDataBase.insert(USERS_TABLE_NAME, null, cv);
+    public void insertVisiting(String user_id, String place_id, String images) {
+        Map<String, Object> place = new HashMap<>();
+        place.put("user_id", user_id);
+        place.put("place_id", place_id);
+        place.put("images", images);
+        visitingDoc.document(user_id + " " + place_id).set(place);
     }
 
-    public long insertVisiting(long user_id, long place_id, String images) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_USER_ID, user_id);
-        cv.put(COLUMN_PLACE_ID, place_id);
-        cv.put(COLUMN_IMAGES, images);
-        return mDataBase.insert(VISITING_TABLE_NAME, null, cv);
-    }
-
-    public int update(Places md) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_ADDRESS, md.getAddress());
-        cv.put(COLUMN_LATITUDE, md.getLatitude());
-        cv.put(COLUMN_LONGITUDE, md.getLongitude());
-        cv.put(COLUMN_DESCRIPTION, md.getDescription());
-        cv.put(COLUMN_IMAGE, md.getImage());
-        return mDataBase.update(PLACES_TABLE_NAME, cv, COLUMN_ID + " = ?", new String[] {String.valueOf(md.getId())});
-    }
-
-    public int update(Users md) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_USERNAME, md.getUsername());
-        return mDataBase.update(USERS_TABLE_NAME, cv, COLUMN_ID + " = ?", new String[] {String.valueOf(md.getId())});
-    }
-
-    public int update(Visiting md) {
-        ContentValues cv = new ContentValues();
-        cv.put(COLUMN_USER_ID, md.getUserId());
-        cv.put(COLUMN_PLACE_ID, md.getPlaceId());
-        cv.put(COLUMN_IMAGES, md.getImages());
-        return mDataBase.update(VISITING_TABLE_NAME, cv, COLUMN_ID + " = ?", new String[] {String.valueOf(md.getId())});
-    }
-
-    public void deleteAll(String table_name) {
-        mDataBase.delete(table_name, null, null);
-    }
-
-    public void delete(String table_name, long id) {
-        mDataBase.delete(table_name, COLUMN_ID + " = ?", new String[] {String.valueOf(id) });
-    }
-
-    public Object select(String table_name, long id) {
-        if (table_name.equals(PLACES_TABLE_NAME)) return selectPlaces(id);
-        else if (table_name.equals(USERS_TABLE_NAME)) return selectUsers(id);
-        return selectVisiting(id);
-    }
-
-    public Places selectPlaces(long id) {
-        Cursor mCursor = mDataBase.query(PLACES_TABLE_NAME, null, COLUMN_ID + " = ?", new String[]{String.valueOf(id)}, null, null, null);
-
-        mCursor.moveToFirst();
-        String Address = mCursor.getString(NUM_COLUMN_ADDRESS);
-        float Latitude = mCursor.getFloat(NUM_COLUMN_LATITUDE);
-        float Longitude = mCursor.getFloat(NUM_COLUMN_LONGITUDE);
-        String Description = mCursor.getString(NUM_COLUMN_DESCRIPTION);
-        String Image = mCursor.getString(NUM_COLUMN_IMAGE);
-        return new Places(id, Address, Latitude,   Longitude, Description, Image);
+    public String selectPlaces(String id) {
+        DocumentReference place = mDataBase.collection(PLACES_TABLE_NAME).document(id);
+        place.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
+            @Override
+            public void onComplete(@NonNull Task<DocumentSnapshot> task) {
+                if (task.isSuccessful()) {
+                    return task.getResult();
+                }
+                return null;
+            }
+        });
     }
 
     public Places selectPlaces(String address) {
@@ -246,41 +218,4 @@ public class DBPlaces {
         }
         return arr;
     }
-
-    private class OpenHelper extends SQLiteOpenHelper {
-
-        OpenHelper(Context context) {
-            super(context, DATABASE_NAME, null, DATABASE_VERSION);
-        }
-        @Override
-        public void onCreate(SQLiteDatabase db) {
-            String query = "CREATE TABLE " + PLACES_TABLE_NAME + " (" +
-                    COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    COLUMN_ADDRESS + " TEXT, " +
-                    COLUMN_LATITUDE + " FLOAT, " +
-                    COLUMN_LONGITUDE + " FLOAT, " +
-                    COLUMN_DESCRIPTION + " TEXT, " +
-                    COLUMN_IMAGE + " TEXT);";
-            db.execSQL(query);
-            query = "CREATE TABLE " + USERS_TABLE_NAME + " (" +
-                    COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    COLUMN_USERNAME + " TEXT);";
-            db.execSQL(query);
-            query = "CREATE TABLE " + VISITING_TABLE_NAME + " (" +
-                    COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    COLUMN_USER_ID + " INTEGER, " +
-                    COLUMN_PLACE_ID + " INTEGER, " +
-                    COLUMN_IMAGES + " TEXT);";
-            db.execSQL(query);
-        }
-
-        @Override
-        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            db.execSQL("DROP TABLE IF EXISTS " + PLACES_TABLE_NAME);
-            db.execSQL("DROP TABLE IF EXISTS " + USERS_TABLE_NAME);
-            db.execSQL("DROP TABLE IF EXISTS " + VISITING_TABLE_NAME);
-            onCreate(db);
-        }
-    }
-
 }

@@ -3,14 +3,14 @@ package com.example.project;
 import java.io.Serializable;
 
 public class Places implements Serializable {
-    private long id;
+    private String id;
     private String address;
     private float latitude;
     private float longitude;
     private String description;
     private String image;
 
-    public Places (long id, String address, float latitude, float longitude, String description, String image) {
+    public Places (String id, String address, float latitude, float longitude, String description, String image) {
         this.id = id;
         this.address = address;
         this.latitude = latitude;
@@ -19,7 +19,7 @@ public class Places implements Serializable {
         this.image = image;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
 
