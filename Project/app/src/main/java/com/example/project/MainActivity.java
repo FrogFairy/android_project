@@ -10,17 +10,20 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -40,6 +43,7 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
+import com.squareup.picasso.Picasso;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.GeoObject;
 import com.yandex.mapkit.MapKitFactory;
@@ -54,6 +58,7 @@ import com.yandex.runtime.image.ImageProvider;
 
 import java.io.BufferedWriter;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -100,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
     private Scanner pos;
     private GeocoderResponse.Geocoder map;
     private String description;
-    private Uri image;
+    private File image;
 
     private Intent dialog;
     private Intent placeActivity;
@@ -111,6 +116,10 @@ public class MainActivity extends AppCompatActivity {
     private AsyncTask<String , Void ,String> get;
     private ArrayList<Places> md;
 
+    private String android_id;
+    private Users user;
+
+    @SuppressLint("HardwareIds")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -125,6 +134,15 @@ public class MainActivity extends AppCompatActivity {
         width = displayMetrics.widthPixels;
 
         mDBConnector = new DBPlaces(this);
+        android_id = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        if (user == null) {
+            user = mDBConnector.selectUsers(android_id);
+            if (user == null) {
+                mDBConnector.insertUsers(android_id);
+                user = mDBConnector.selectUsers(android_id);
+            }
+        }
+
         textView = findViewById(R.id.textView);
 
         // запуск активити добавления места
@@ -138,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
                             if (data != null) {
                                 address = data.getStringExtra("address");
                                 description = data.getStringExtra("description");
-                                image = (Uri) data.getExtras().get("image");
+                                image = (File) data.getExtras().get("image");
                                 sendInput(address, description, image);
                             }
                         }
@@ -165,10 +183,16 @@ public class MainActivity extends AppCompatActivity {
                     case R.id.place:
                         placeActivity = new Intent(MainActivity.this, PlaceActivity.class);
                         placeActivity.putExtra("placeID", curPlace.getId());
+                        placeActivity.putExtra("userID", user.getId());
                         startActivity(placeActivity);
                         break;
                     case R.id.add:
                         dialog = new Intent(MainActivity.this, CustomDialog.class);
+                        if (md.size() > 0) {
+                            dialog.putExtra("id", md.get(md.size() - 1).getId() + 1);
+                        } else {
+                            dialog.putExtra("id", (long) 1);
+                        }
                         dialogLauncher.launch(dialog);
                         break;
                 }
@@ -255,7 +279,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    protected void sendInput(String address, String description, Uri image) {
+    protected void sendInput(String address, String description, File image) {
         // изменение адреса в соответствии с форматом
         this.address = address.replace(" ", "+");
 
@@ -270,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
             lon = pos.nextDouble();
             lat = pos.nextDouble();
 
-            mDBConnector.insertPlaces(address, (float) lat, (float) lon, this.description, this.image.toString());
+            mDBConnector.insertPlaces(address, (float) lat, (float) lon, this.description, image.getPath());
             setPoints();
         } catch (Exception e) {
             Toast.makeText(this, "Что-то пошло не так", Toast.LENGTH_SHORT).show();

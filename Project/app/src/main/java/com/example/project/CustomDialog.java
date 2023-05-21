@@ -26,7 +26,15 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class CustomDialog extends AppCompatActivity {
     private Button yes, no;
@@ -36,6 +44,8 @@ public class CustomDialog extends AppCompatActivity {
     private String address, description;
     private Uri image;
     private Bitmap bitmap;
+    private long id;
+    private File file;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +54,7 @@ public class CustomDialog extends AppCompatActivity {
         setContentView(R.layout.add_dialog);
         this.setFinishOnTouchOutside(true);
 
+        id = getIntent().getLongExtra("id", 0);
         yes = findViewById(R.id.confirm);
         no = findViewById(R.id.cancel);
         browse = findViewById(R.id.browse);
@@ -71,7 +82,7 @@ public class CustomDialog extends AppCompatActivity {
                     Intent i = new Intent();
                     i.putExtra("address", address);
                     i.putExtra("description", description);
-                    i.putExtra("image", image);
+                    i.putExtra("image", file);
                     setResult(RESULT_OK, i);
                     finish();
                 }
@@ -94,6 +105,8 @@ public class CustomDialog extends AppCompatActivity {
 
                                     imageView.setVisibility(View.VISIBLE);
                                     imageView.setImageBitmap(bitmap);
+
+                                    saveFile();
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                 }
@@ -106,9 +119,21 @@ public class CustomDialog extends AppCompatActivity {
             public void onClick(View arg0) {
                 Intent intent = new Intent();
                 intent.setType("image/*");
-                intent.setAction(Intent.ACTION_GET_CONTENT);
+                intent.setAction(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
                 launcher.launch(intent);
             }
         });
+    }
+
+    private void saveFile() throws IOException {
+        file = new File(getCacheDir(), "image" + id);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
+        byte[] bitmapdata = bos.toByteArray();
+        FileOutputStream fos = new FileOutputStream(file);
+        fos.write(bitmapdata);
+        fos.flush();
+        fos.close();
     }
 }

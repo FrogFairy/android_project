@@ -80,7 +80,7 @@ public class DBPlaces {
         cv.put(COLUMN_USER_ID, user_id);
         cv.put(COLUMN_PLACE_ID, place_id);
         cv.put(COLUMN_IMAGES, images);
-        return mDataBase.insert(USERS_TABLE_NAME, null, cv);
+        return mDataBase.insert(VISITING_TABLE_NAME, null, cv);
     }
 
     public int update(Places md) {
@@ -130,7 +130,7 @@ public class DBPlaces {
         float Longitude = mCursor.getFloat(NUM_COLUMN_LONGITUDE);
         String Description = mCursor.getString(NUM_COLUMN_DESCRIPTION);
         String Image = mCursor.getString(NUM_COLUMN_IMAGE);
-        return new Places(id, Address, Latitude, Longitude, Description, Image);
+        return new Places(id, Address, Latitude,   Longitude, Description, Image);
     }
 
     public Places selectPlaces(String address) {
@@ -153,6 +153,17 @@ public class DBPlaces {
         return new Users(id, Username);
     }
 
+    public Users selectUsers(String username) {
+        Cursor mCursor = mDataBase.query(USERS_TABLE_NAME, null, COLUMN_USERNAME + " = ?", new String[]{username}, null, null, null);
+
+        if (mCursor.getCount() > 0) {
+            mCursor.moveToFirst();
+            int id = mCursor.getInt(NUM_COLUMN_ID);
+            return new Users(id, username);
+        }
+        return null;
+    }
+
     public Visiting selectVisiting(long id) {
         Cursor mCursor = mDataBase.query(VISITING_TABLE_NAME, null, COLUMN_ID + " = ?", new String[]{String.valueOf(id)}, null, null, null);
 
@@ -161,6 +172,19 @@ public class DBPlaces {
         long PlaceId = mCursor.getLong(NUM_COLUMN_PLACE_ID);
         String Images = mCursor.getString(NUM_COLUMN_IMAGES);
         return new Visiting(id, UserId, PlaceId, Images);
+    }
+
+    public Visiting selectVisiting(Users user) {
+        Cursor mCursor = mDataBase.query(VISITING_TABLE_NAME, null, COLUMN_USER_ID + " = ?", new String[]{String.valueOf(user.getId())}, null, null, null);
+
+        if (mCursor.getCount() > 0) {
+            mCursor.moveToFirst();
+            long Id = mCursor.getLong(NUM_COLUMN_ID);
+            long PlaceId = mCursor.getLong(NUM_COLUMN_PLACE_ID);
+            String Images = mCursor.getString(NUM_COLUMN_IMAGES);
+            return new Visiting(Id, user.getId(), PlaceId, Images);
+        }
+        return null;
     }
 
     public Object selectAll(String table_name) {
